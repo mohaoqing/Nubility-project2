@@ -71,36 +71,28 @@ class Crawler:
             return []
         outputLinks = []
         word_count = 0
-        # soup = BeautifulSoup(url_data["content"], 'lxml')
+        soup = BeautifulSoup(url_data["content"], 'lxml')
 
         #https://stackoverflow.com/questions/24396406/find-most-common-words-from-a-website-in-python-3 credit to Padraic Cunningham
 
 
-        ## put all the words in this page into a counter
-        # text = (''.join(s.findAll(text=True)) for s in soup.findAll('p'))
-        # for words in text:
-        #     word_count += len(words.split())
-        #     for word in words.split():
-        #         if word.rstrip(punctuation).lower() not in stopwords.words('english') and len(word) != 1:
-        #             cnt[word] += 1
+        # put all the words in this page into a counter
+        text = (''.join(s.findAll(text=True)) for s in soup.findAll('p'))
+        for words in text:
+            word_count += len(words.split())
+            for word in words.split():
+                if word.rstrip(punctuation).lower() not in stopwords.words('english') and len(word) != 1:
+                    cnt[word] += 1
 
-        ##check if this page has most words
-        # if word_count > longest_page[1]:
-        #     longest_page[0] = url_data['url']
-        #     longest_page[1] = word_count
-
-        #
+        #check if this page has most words
+        if word_count > longest_page[1]:
+            longest_page[0] = url_data['url']
+            longest_page[1] = word_count
 
         doc = etree.HTML(url_data["content"])
 
         if doc:
             result = doc.xpath('//a/@href')
-
-            ## check if this page has most out links
-            # if (len(result)) > mostoutlink_page[1]:
-            #     mostoutlink_page[0] = url_data['url']
-            #     mostoutlink_page[1] = len(result)
-
 
             for i in result:
                 if is_absolute(i):
@@ -110,6 +102,11 @@ class Crawler:
                     abs_url = urljoin(url_data["url"], i[1:])
                     subdomains.add(abs_url)
                     outputLinks.append(abs_url)
+
+        ## check if this page has most out links
+        if (len(outputLinks)) > mostoutlink_page[1]:
+            mostoutlink_page[0] = url_data['url']
+            mostoutlink_page[1] = len(outputLinks)
 
         ##多重实验先决条件， comment out 来验证个例
         return outputLinks
