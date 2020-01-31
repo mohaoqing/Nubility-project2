@@ -18,6 +18,7 @@ def is_absolute(url):
 logger = logging.getLogger(__name__)
 
 #全局变量
+downloaded_all_urls = set()
 subdomains = set()
 mostoutlink_page = ['',0]
 longest_page = ['',0]
@@ -56,6 +57,9 @@ class Crawler:
         print(cnt.most_common(50))
         print(mostoutlink_page)
         print(longest_page)
+        print("################### Downloaded URLS:")
+        for i in downloaded_all_urls:
+            print("  ", i)
 
     def extract_next_links(self, url_data):
         """
@@ -94,14 +98,17 @@ class Crawler:
         if doc:
             result = doc.xpath('//a/@href')
 
+            ## get subdomain  https://stackoverflow.com/questions/6925825/get-subdomain-from-url-using-python
             for i in result:
                 if is_absolute(i):
-                    subdomains.add(i)
+                    downloaded_all_urls.add(i)
                     outputLinks.append(i)
+                    subdomains.add(urlparse(i).hostname.split('.')[0])
                 elif len(i) > 1 and i[0] == '/':
                     abs_url = urljoin(url_data["url"], i[1:])
-                    subdomains.add(abs_url)
+                    downloaded_all_urls.add(abs_url)
                     outputLinks.append(abs_url)
+                    subdomains.add(urlparse(abs_url).hostname.split('.')[0])
 
         ## check if this page has most out links
         if (len(outputLinks)) > mostoutlink_page[1]:
