@@ -9,6 +9,12 @@ from string import punctuation
 from nltk.corpus import stopwords
 import os
 import pickle
+import time
+import requests
+from nltk import word_tokenize
+import nltk
+from urllib import request
+
 
 
 def is_absolute(url):
@@ -18,11 +24,9 @@ def is_absolute(url):
 logger = logging.getLogger(__name__)
 
 #全局变量
-downloaded_all_urls = []
-subdomains = set()
+downloaded_all_urls = set()
 mostoutlink_page = ['',0]
 longest_page = ['',0]
-
 traps = []
 
 # def is_absolute(url):  # a helper function which checks if an url is absolute, credit to Lukáš Lalinský
@@ -44,6 +48,7 @@ class Crawler:
         self.cnt = Counter()
         self.subcnt = Counter()
         self.url_data = ''
+        self.sw = stopwords.words('english')
 
     def start_crawling(self):
         """
@@ -52,7 +57,6 @@ class Crawler:
         """
 
         while self.frontier.has_next_url():
-
             url = self.frontier.get_next_url()
             logger.info("Fetching URL %s ... Fetched: %s, Queue size: %s", url, self.frontier.fetched, len(self.frontier))
             url_data = self.corpus.fetch_url(url)
@@ -65,13 +69,39 @@ class Crawler:
                     if self.corpus.get_file_name(next_link) is not None:
                         self.frontier.add_url(next_link)
 
-        analysis_file = open(self.ANALYSIS_FILE_NAME, "wb")
-        pickle.dump(self.cnt.most_common(50),analysis_file)
-        pickle.dump(mostoutlink_page, analysis_file)
-        pickle.dump(longest_page, analysis_file)
-        pickle.dump(downloaded_all_urls, analysis_file)
-        pickle.dump(subdomains, analysis_file)
-        pickle.dump(traps, analysis_file)
+        analysis_file = open(self.ANALYSIS_FILE_NAME, "w")
+
+        analysis_file.write("\nWords count")
+        for key,value in self.cnt.most_common():
+            if key in self.sw:
+                del self.cnt[key]
+
+        for key,value in self.cnt.most_common(50):
+            analysis_file.write('\n\t' + key + " " + str(value))
+
+        analysis_file.write("\nMOSTOUTLINK PAGES")
+        analysis_file.write("\n" + mostoutlink_page[0] + " " + str(mostoutlink_page[1]))
+
+        analysis_file.write("\nLONGEST PAGES")
+        analysis_file.write("\n" + longest_page[0] + " " + str(longest_page[1]))
+
+        analysis_file.write("\nDOWNLOADED URLS")
+        for i in downloaded_all_urls:
+            try:
+                analysis_file.write('\n\t' + str(i))
+            except UnicodeEncodeError:
+                pass
+
+        analysis_file.write("\n\nSUBDOMAINS")
+        for key,value in self.subcnt.most_common():
+            analysis_file.write('\n\t' + str(key) + " " + str(value))
+
+        analysis_file.write("\n\nTRAPS")
+        for i in traps:
+            try:
+                analysis_file.write('\n\t' + str(i))
+            except UnicodeEncodeError:
+                pass
 
     def extract_next_links(self, url_data):
         """
@@ -85,6 +115,7 @@ class Crawler:
         """
         if url_data["http_code"] == 404:
             return []
+        parsed = urlparse(url_data["url"])
 
         outputLinks = []  #https://stackoverflow.com/questions/24396406/find-most-common-words-from-a-website-in-python-3 credit to Padraic Cunningham
 
@@ -95,24 +126,23 @@ class Crawler:
             ## get subdomain  https://stackoverflow.com/questions/6925825/get-subdomain-from-url-using-python
 
             for i in result:
-                if is_absolute(i):
-                    outputLinks.append(i)
+                if len(i) > 1:
+                    if is_absolute(i):
+                        outputLinks.append(i)
 
-                elif '@' in i:
-                    continue
+                    elif i[0] == '/':
+                        outputLinks.append("https://" + parsed.netloc + i)
 
-                elif len(i) > 1 and i[0] == '/':
-                    parsed = urlparse(url_data["url"])
-                    abs_url = "https://" + parsed.netloc + i
-                    outputLinks.append(abs_url)
+                    elif i[0] != '/' and i[0] == '.' and i[1] == '.':
+                        abs_url = '/'.join(url_data["url"].split('/')[:-2]) + i[2:]
+                        outputLinks.append(abs_url)
 
-                elif len(i) > 1 and i[0] != '/' and i[0] == '.' and i[1] == '.':
-                    abs_url = '/'.join(url_data["url"].split('/')[:-2]) + i[2:]
-                    outputLinks.append(abs_url)
+                    elif i[0] != '/' and i[0] != '.':
+                        abs_url = '/'.join(url_data["url"].split('/')[:-1]) + '/' + i
+                        outputLinks.append(abs_url)
 
-                elif len(i) > 1 and i[0] != '/' and i[0] != '.':
-                    abs_url = '/'.join(url_data["url"].split('/')[:-1]) + '/' + i
-                    outputLinks.append(abs_url)
+                    else:
+                        print(url_data["url"])
 
         ## check if this page has most out links
         if (len(outputLinks)) > mostoutlink_page[1]:
@@ -128,13 +158,16 @@ class Crawler:
         filter out crawler traps. Duplicated urls will be taken care of by frontier. You don't need to check for duplication
         in this method
         """
-        soup = BeautifulSoup(self.url_data["content"], 'lxml')
         word_count = 0
 
         parsed = urlparse(url)
 
         ##开始Invalid检测
-        if parsed.scheme not in set(["http", "https"]):
+        if parsed.scheme not in {"http", "https"}:
+            return False
+
+        if 'calendar' in url:
+            traps.append(url + '\n\t\tTraps: Calendar included- may create infinite webpages')
             return False
 
         if len(self.url_counter) > 1 and self.url_counter[-0] == url:
@@ -144,7 +177,7 @@ class Crawler:
         else:
             if len(self.url_counter) > 3:
                 for i in range(len(self.url_counter)):
-                    traps.append(self.url_counter[i] + "\n\tTraps: Duplicate url appears")
+                    traps.append(self.url_counter[i] + "\n\t\tTraps: Duplicate url appears")
                 self.url_counter.clear()
                 return False
             else:
@@ -152,34 +185,37 @@ class Crawler:
                 self.url_counter.append(url)
 
         if len(url.split("/")) > 9:
-            traps.append(url + "\n\tTraps: Recursive paths detected")
+            traps.append(url + "\n\t\tTraps: Recursive paths detected")
             return False
 
         elif len(url.split('/')) != len(set(url.split('/'))):
-            traps.append(url + "\n\tTraps: Repeat Directories detected")
+            traps.append(url + "\n\t\tTraps: Repeat Directories detected")
             return False
 
         elif len(parsed.query.split("&")) > 3:
-            traps.append(url + "\n\tTraps: Too many queries-may be dynamic page")
+            traps.append(url + "\n\t\tTraps: Too many queries-may be dynamic page\n")
             return False
 
         #################
         #判断完成，证明这个valid之后的操作:
-        self.subcnt[parsed.netloc.split(":")[0]] += 1
-        # downloaded_all_urls.append(url)
-        # # put all the words in this page into a counter
-        # text = (''.join(s.findAll(text=True)) for s in soup.findAll('p'))
-        # for words in text:
-        #     word_count += len(words.split())
-        #     for word in words.split():
-        #         if word.rstrip(punctuation).lower() not in stopwords.words('english') and len(word) != 1:
-        #             self.cnt[word] += 1
-        #
-        # # check if this page has most words
-        # if word_count > longest_page[1]:
-        #     longest_page[0] = url_data['url']
-        #     longest_page[1] = word_count
+        if '.' in parsed.netloc:
+            self.subcnt[parsed.netloc.split(':')[0]] += 1
+
+        downloaded_all_urls.add(url)
+
+        # put all the words in this page into a counter
+        text_string = self.url_data["content"].lower()
+        match_pattern = re.findall(r'\b[a-z]{3,15}\b', str(text_string))
+        word_count = len(match_pattern)
+        for i in match_pattern:
+            self.cnt[i] += 1
+
+        # check if this page has most words
+        if word_count > longest_page[1]:
+            longest_page[0] = url
+            longest_page[1] = word_count
         #################
+
 
         try:
             return ".ics.uci.edu" in parsed.hostname \
