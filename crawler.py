@@ -71,6 +71,7 @@ class Crawler:
         pickle.dump(longest_page, analysis_file)
         pickle.dump(downloaded_all_urls, analysis_file)
         pickle.dump(subdomains, analysis_file)
+        pickle.dump(traps, analysis_file)
 
     def extract_next_links(self, url_data):
         """
