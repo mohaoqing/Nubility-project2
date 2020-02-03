@@ -40,7 +40,7 @@ class Crawler:
     def __init__(self, frontier, corpus):
         self.frontier = frontier
         self.corpus = corpus
-        self.url_counter = ''
+        self.url_counter = []
         self.cnt = Counter()
         self.subcnt = Counter()
         self.url_data = ''
@@ -50,17 +50,20 @@ class Crawler:
         This method starts the crawling process which is scraping urls from the next available link in frontier and adding
         the scraped links to the frontier
         """
+
         while self.frontier.has_next_url():
+
             url = self.frontier.get_next_url()
             logger.info("Fetching URL %s ... Fetched: %s, Queue size: %s", url, self.frontier.fetched, len(self.frontier))
             url_data = self.corpus.fetch_url(url)
             self.url_data = url_data
 
             for next_link in self.extract_next_links(url_data):
+
+                next_link = next_link.strip('/')
                 if self.is_valid(next_link):
                     if self.corpus.get_file_name(next_link) is not None:
                         self.frontier.add_url(next_link)
-
 
         analysis_file = open(self.ANALYSIS_FILE_NAME, "wb")
         pickle.dump(self.cnt.most_common(50),analysis_file)
@@ -89,12 +92,25 @@ class Crawler:
         if doc:
             result = doc.xpath('//a/@href')
             ## get subdomain  https://stackoverflow.com/questions/6925825/get-subdomain-from-url-using-python
+
             for i in result:
                 if is_absolute(i):
                     outputLinks.append(i)
 
+                elif '@' in i:
+                    continue
+
                 elif len(i) > 1 and i[0] == '/':
-                    abs_url = urljoin(url_data["url"], i[1:])
+                    parsed = urlparse(url_data["url"])
+                    abs_url = "https://" + parsed.netloc + i
+                    outputLinks.append(abs_url)
+
+                elif len(i) > 1 and i[0] != '/' and i[0] == '.' and i[1] == '.':
+                    abs_url = '/'.join(url_data["url"].split('/')[:-2]) + i[2:]
+                    outputLinks.append(abs_url)
+
+                elif len(i) > 1 and i[0] != '/' and i[0] != '.':
+                    abs_url = '/'.join(url_data["url"].split('/')[:-1]) + '/' + i
                     outputLinks.append(abs_url)
 
         ## check if this page has most out links
@@ -120,20 +136,31 @@ class Crawler:
         if parsed.scheme not in set(["http", "https"]):
             return False
 
-        if self.url_counter == url and len(url) > 60:
-            traps.append(url + "\n\tDuplicate url appears")
-            print(self.url_counter, url)
-            print(traps)
+        if len(self.url_counter) > 1 and self.url_counter[-0] == url:
+            self.url_counter.append(url)
             return False
 
         else:
-            self.url_counter = url
+            if len(self.url_counter) > 3:
+                for i in range(len(self.url_counter)):
+                    traps.append(self.url_counter[i] + "\n\tTraps: Duplicate url appears")
+                self.url_counter.clear()
+                return False
+            else:
+                self.url_counter.clear()
+                self.url_counter.append(url)
 
         if len(url.split("/")) > 9:
-            print(url)
-            traps.append(url + "\n\tRecursive paths detected")
+            traps.append(url + "\n\tTraps: Recursive paths detected")
             return False
 
+        elif len(url.split('/')) != len(set(url.split('/'))):
+            traps.append(url + "\n\tTraps: Repeat Directories detected")
+            return False
+
+        elif len(parsed.query.split("&")) > 3:
+            traps.append(url + "\n\tTraps: Too many queries-may be dynamic page")
+            return False
 
         #################
         #判断完成，证明这个valid之后的操作:
