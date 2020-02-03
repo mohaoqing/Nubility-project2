@@ -36,7 +36,6 @@ class Crawler:
     def __init__(self, frontier, corpus):
         self.frontier = frontier
         self.corpus = corpus
-        self.url_counter = []
         self.cnt = Counter()
         self.subcnt = Counter()
         self.url_data = ''
@@ -57,8 +56,6 @@ class Crawler:
 
             for next_link in self.extract_next_links(url_data):
                 next_link = next_link.strip('/')
-                if not self.is_valid(next_link):
-                    print(next_link)
                 if self.is_valid(next_link):
                     if self.corpus.get_file_name(next_link) is not None:
                         self.frontier.add_url(next_link)
@@ -145,8 +142,7 @@ class Crawler:
                         outputLinks.append(abs_url)
 
                     else:
-                        print(i, " 222222222222")
-                        outputLinks.append(i)
+                        pass
 
         ## check if this page has most out links
         if (len(outputLinks)) > mostoutlink_page[1]:
@@ -168,42 +164,21 @@ class Crawler:
 
         ##开始Invalid检测
         if parsed.scheme not in {"http", "https"}:
-            print("0")
             return False
 
-        if 'calendar' in url:
-            print("1")
+        if "calendar." in url or "/calendar" in url:
             traps.append(url + '\n\t\tTraps: Calendar included- may create infinite webpages')
             return False
 
-        if len(self.url_counter) > 1 and self.url_counter[0] == url:
-            print("2")
-            self.url_counter.append(url)
-            return False
-
-        else:
-            if len(self.url_counter) > 3:
-                for i in range(len(self.url_counter)):
-                    traps.append(self.url_counter[i] + "\n\t\tTraps: Duplicate url appears")
-                self.url_counter.clear()
-                print("3")
-                return False
-            else:
-                self.url_counter.clear()
-                self.url_counter.append(url)
-
         if len(url.split("/")) > 10 and '..' not in url:
-            print("4")
             traps.append(url + "\n\t\tTraps: Recursive paths detected")
             return False
 
-        elif len(url.split('/')) != len(set(url.split('/'))) and '..' not in url:
-            print("5")
+        elif (len(url.split('/')) - len(set(url.split('/'))) > 1) and 'http' not in set(url.split('/')) and '..' not in url:
             traps.append(url + "\n\t\tTraps: Repeat Directories detected")
             return False
 
         elif len(parsed.query.split("&")) > 2 and '..' not in url:
-            print("6")
             traps.append(url + "\n\t\tTraps: Too many queries-may be dynamic page\n")
             return False
 
