@@ -23,9 +23,6 @@ class Frontier:
     URL_SET_FILE_NAME = os.path.join(".", FRONTIER_DIR_NAME, "url_set.pkl")
     FETCHED_FILE_NAME = os.path.join(".", FRONTIER_DIR_NAME, "fetched.pkl")
 
-
-
-
     def __init__(self):
         self.urls_queue = deque()
         self.urls_set = set()
@@ -67,9 +64,11 @@ class Frontier:
         url_queue_file = open(self.URL_QUEUE_FILE_NAME, "wb")
         url_set_file = open(self.URL_SET_FILE_NAME, "wb")
         fetched_file = open(self.FETCHED_FILE_NAME, "wb")
+
         pickle.dump(self.urls_queue, url_queue_file)
         pickle.dump(self.urls_set, url_set_file)
         pickle.dump(self.fetched, fetched_file)
+
 
     def load_frontier(self):
         """
