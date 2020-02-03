@@ -42,7 +42,6 @@ class Crawler:
         self.url_data = ''
         self.sw = stopwords.words('english')
         self.htmlsw = {"class", "href", "div", "dropdown", "item", "span", "php", "www", "https", "type", "http", "name", "img", "nav", "src", "script", "com", "toggle", "text", "bin", "hidden", "link", "false", "true", "input", "style", "jpg", "alt", "amp", "col", "javascript", "html", "content", "pdf", "png" ,"btn", "icon", "title", "nbsp", "rel", "css" ,"font"}
-        self.count = 0
 
     def start_crawling(self):
         """
@@ -50,15 +49,13 @@ class Crawler:
         the scraped links to the frontier
         """
 
-        while self.count < 1000 and self.frontier.has_next_url():
-            self.count += 1
+        while self.frontier.has_next_url():
             url = self.frontier.get_next_url()
             logger.info("Fetching URL %s ... Fetched: %s, Queue size: %s", url, self.frontier.fetched, len(self.frontier))
             url_data = self.corpus.fetch_url(url)
             self.url_data = url_data
 
             for next_link in self.extract_next_links(url_data):
-
                 next_link = next_link.strip('/')
                 if self.is_valid(next_link):
                     if self.corpus.get_file_name(next_link) is not None:
@@ -170,7 +167,7 @@ class Crawler:
             traps.append(url + '\n\t\tTraps: Calendar included- may create infinite webpages')
             return False
 
-        if len(self.url_counter) > 1 and self.url_counter[-0] == url:
+        if len(self.url_counter) > 1 and self.url_counter[0] == url:
             self.url_counter.append(url)
             return False
 
@@ -184,36 +181,39 @@ class Crawler:
                 self.url_counter.clear()
                 self.url_counter.append(url)
 
-        if len(url.split("/")) > 9:
+        if len(url.split("/")) > 10 and '..' not in url:
             traps.append(url + "\n\t\tTraps: Recursive paths detected")
             return False
 
-        elif len(url.split('/')) != len(set(url.split('/'))):
+        elif len(url.split('/')) != len(set(url.split('/'))) and '..' not in url:
             traps.append(url + "\n\t\tTraps: Repeat Directories detected")
             return False
 
-        elif len(parsed.query.split("&")) > 3:
+        elif len(parsed.query.split("&")) > 2 and '..' not in url:
             traps.append(url + "\n\t\tTraps: Too many queries-may be dynamic page\n")
             return False
 
         #################
         #判断完成，证明这个valid之后的操作:
         if '.' in parsed.netloc:
-            self.subcnt[parsed.netloc.split(':')[0]] += 1
+            subdomain = parsed.netloc.split(':')[0]
+            if 'www' in subdomain.split('.'):
+                subdomain = '.'.join(subdomain.split('.')[1:])
+            self.subcnt[subdomain] += 1
 
         downloaded_all_urls.add(url)
 
         # put all the words in this page into a counter
-        text_string = self.url_data["content"].lower()
-        match_pattern = re.findall(r'\b[a-z]{3,15}\b', str(text_string))
-        word_count = len(match_pattern)
-        for i in match_pattern:
-            self.cnt[i] += 1
-
-        # check if this page has most words
-        if word_count > longest_page[1]:
-            longest_page[0] = url
-            longest_page[1] = word_count
+        # text_string = self.url_data["content"].lower()
+        # match_pattern = re.findall(r'\b[a-z]{3,15}\b', str(text_string))
+        # word_count = len(match_pattern)
+        # for i in match_pattern:
+        #     self.cnt[i] += 1
+        #
+        # # check if this page has most words
+        # if word_count > longest_page[1]:
+        #     longest_page[0] = url
+        #     longest_page[1] = word_count
         #################
 
 
