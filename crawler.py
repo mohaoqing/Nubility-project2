@@ -1,19 +1,11 @@
 import logging
 import re
 from urllib.parse import urlparse
-from urllib.parse import urljoin
 from lxml import etree
-from bs4 import BeautifulSoup
 from collections import Counter
-from string import punctuation
 from nltk.corpus import stopwords
 import os
-import pickle
-import time
-import requests
-from nltk import word_tokenize
-import nltk
-from urllib import request
+
 
 
 
@@ -49,6 +41,8 @@ class Crawler:
         self.subcnt = Counter()
         self.url_data = ''
         self.sw = stopwords.words('english')
+        self.htmlsw = {"class", "href", "div", "dropdown", "item", "span", "php", "www", "https", "type", "http", "name", "img", "nav", "src", "script", "com", "toggle", "text", "bin", "hidden", "link", "false", "true", "input", "style", "jpg", "alt", "amp", "col", "javascript", "html", "content", "pdf", "png" ,"btn", "icon", "title", "nbsp", "rel", "css" ,"font"}
+        self.count = 0
 
     def start_crawling(self):
         """
@@ -56,7 +50,8 @@ class Crawler:
         the scraped links to the frontier
         """
 
-        while self.frontier.has_next_url():
+        while self.count < 1000 and self.frontier.has_next_url():
+            self.count += 1
             url = self.frontier.get_next_url()
             logger.info("Fetching URL %s ... Fetched: %s, Queue size: %s", url, self.frontier.fetched, len(self.frontier))
             url_data = self.corpus.fetch_url(url)
@@ -75,6 +70,11 @@ class Crawler:
         for key,value in self.cnt.most_common():
             if key in self.sw:
                 del self.cnt[key]
+                continue
+            if key in self.htmlsw:
+                del self.cnt[key]
+                continue
+
 
         for key,value in self.cnt.most_common(50):
             analysis_file.write('\n\t' + key + " " + str(value))
